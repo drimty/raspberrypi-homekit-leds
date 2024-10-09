@@ -80,7 +80,7 @@ Other PM2 commands:
 * pm2 start
 * pm2 delete
 
-## disable GUI
+## Disable GUI
 
 ```
 sudo raspi-config
