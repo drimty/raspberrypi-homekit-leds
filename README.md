@@ -10,7 +10,7 @@ The default pairing code is set to `111-12-222`.
 
 ## GPIO
 
-[GPIO](https://www.raspberrypi.com/documentation/computers/images/GPIO-Pinout-Diagram-2.png)
+[![GPIO](https://www.raspberrypi.com/documentation/computers/images/GPIO-Pinout-Diagram-2.png)](https://www.raspberrypi.com/documentation/computers/images/GPIO-Pinout-Diagram-2.png)
 
 ## Circuit Diagram
 
