@@ -7,11 +7,11 @@
     "start": "sudo node ./src/lights.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "author": "BasementMaker (https://basementmaker.net/) & Andreas Bauer <mail@anderl-bauer.de>",
+  "author": "drimty",
   "license": "ISC",
   "repository": {
     "type": "git",
-    "url": "https://github.com/homebridge/HAP-NodeJS-examples.git"
+    "url": "https://github.com/drimty/raspberrypi-homekit-leds.git"
   },
   "dependencies": {
     "hap-nodejs": "^1.1.0",
