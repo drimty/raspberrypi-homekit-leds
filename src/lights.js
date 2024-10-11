@@ -25,7 +25,7 @@ const brightnessCharacteristic = lightService.getCharacteristic(Characteristic.B
 const hueCharacteristic = lightService.getCharacteristic(Characteristic.Hue);
 const saturationCharacteristic = lightService.getCharacteristic(Characteristic.Saturation);
 
-var showLogging = true;
+var showLogging = false;
 var LEDstripStatusIsOn = false;
 var currentLEDbrightness = 0;
 var hue = 0;
@@ -76,9 +76,9 @@ const changeColor = function () {
     g = Math.floor(g * 255);
     b = Math.floor(b * 255);
 
-    if ( r < 25 ) { r = 0 } // helper for poor performing rgb leds, they are too bright at low values. comment out line if needed
-    if ( g < 25 ) { g = 0 } // same as ^
-    if ( b < 25 ) { b = 0 } // same as ^
+    // if ( r < 25 ) { r = 0 } // helper for poor performing rgb leds, they are too bright at low values. comment out line if needed
+    // if ( g < 25 ) { g = 0 } // same as ^
+    // if ( b < 25 ) { b = 0 } // same as ^
 
     redValue = r;
     greenValue = g;
@@ -215,7 +215,6 @@ const lightService_2 = new Service_2.Lightbulb("WLS");
 const onCharacteristic_2 = lightService_2.getCharacteristic(Characteristic_2.On);
 const brightnessCharacteristic_2 = lightService_2.getCharacteristic(Characteristic_2.Brightness);
 
-var showLogging_2 = false;
 var LEDstripStatusIsOn_2 = false;
 var currentLEDbrightness_2 = 0;
 var ledStripGPIOpin_2 = new gpio(22, {mode: gpio.OUTPUT});
@@ -233,7 +232,8 @@ onCharacteristic_2.on(CharacteristicEventTypes_2.SET, (value, callback) => {
     if ( currentLEDbrightness_2 == 0 ) {
       ledStripGPIOpin_2.pwmWrite(255);
     } else {
-      ledStripGPIOpin_2.pwmWrite(currentLEDbrightness_2);
+      var val = parseInt(255*(currentLEDbrightness_2/100), 10);
+      ledStripGPIOpin_2.pwmWrite(val);
     }
   } else if ( value == false ) {
     ledStripGPIOpin_2.pwmWrite(0);
