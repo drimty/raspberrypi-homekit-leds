@@ -1,5 +1,28 @@
 const gpio = require('pigpio').Gpio;
 const hap = require("hap-nodejs");
+const fs = require("fs");
+var showLogging = false;
+var restoredSettings;
+
+// reading a JSON file asynchronously
+fs.readFile("settings.json", (error, data) => {
+  // if the reading process failed,
+  // throwing the error
+  if (error) {
+    // logging the error
+    console.error(error);
+
+    throw err;
+  }
+
+  // parsing the JSON object
+  // to convert it to a JavaScript object
+  restoredSettings = JSON.parse(data);
+
+  // printing the JavaScript object
+  // retrieved from the JSON file
+  console.log(user);
+});
 
 const Accessory = hap.Accessory;
 const Characteristic = hap.Characteristic;
@@ -25,9 +48,8 @@ const brightnessCharacteristic = lightService.getCharacteristic(Characteristic.B
 const hueCharacteristic = lightService.getCharacteristic(Characteristic.Hue);
 const saturationCharacteristic = lightService.getCharacteristic(Characteristic.Saturation);
 
-var showLogging = false;
 var LEDstripStatusIsOn = false;
-var currentLEDbrightness = 0;
+var currentLEDbrightness = restoredSettings["brightnessRGB"];
 var hue = 0;
 var saturation = 0;
 var redLED = new gpio(27, {mode: gpio.OUTPUT});
@@ -39,13 +61,43 @@ redLED.pwmWrite(0);
 greenLED.pwmWrite(0);
 blueLED.pwmWrite(0);
 
-var redValue = 0;
-var greenValue = 0;
-var blueValue = 0;
+var redValue = restoredSettings["red"];
+var greenValue = restoredSettings["green"];
+var blueValue = restoredSettings["blue"];
 
 var brightnessChanged = false;
 var hueChanged = false;
 var saturationChanged = false;
+
+const saveSettings = function () {
+  // initializing a JavaScript object
+  const settings = {
+    red: redValue,
+    green: greenValue,
+    blue: blueValue,
+    brightnessRGB: currentLEDbrightness,
+    brightnessWhite: currentLEDbrightness_2,
+  };
+
+  if (showLogging) {console.log(settings);}
+
+  // converting the JSON object to a string
+  const data = JSON.stringify(settings);
+
+  // writing the JSON string content to a file
+  fs.writeFile("settings.json", data, (error) => {
+    // throwing the error
+    // in case of a writing problem
+    if (error) {
+      // logging the error
+      if (showLogging) {console.error(error);}
+
+      throw error;
+    }
+
+    if (showLogging) {console.log("settings.json written correctly");}
+  });
+}
 
 const changeColor = function () {
   if ( (hueChanged && saturationChanged) || brightnessChanged ) {
@@ -97,6 +149,8 @@ const changeColor = function () {
     brightnessChanged = false;
     hueChanged = false;
     saturationChanged = false;
+
+    saveSettings();
   }
 }
 
@@ -216,7 +270,7 @@ const onCharacteristic_2 = lightService_2.getCharacteristic(Characteristic_2.On)
 const brightnessCharacteristic_2 = lightService_2.getCharacteristic(Characteristic_2.Brightness);
 
 var LEDstripStatusIsOn_2 = false;
-var currentLEDbrightness_2 = 0;
+var currentLEDbrightness_2 = restoredSettings["brightnessWhite"];
 var ledStripGPIOpin_2 = new gpio(22, {mode: gpio.OUTPUT});
 
 ledStripGPIOpin_2.pwmWrite(0);
@@ -254,6 +308,7 @@ brightnessCharacteristic_2.on(CharacteristicEventTypes_2.SET, (value, callback) 
   var val = parseInt(255*(value/100), 10);
   ledStripGPIOpin_2.pwmWrite(val);
   currentLEDbrightness_2 = Math.ceil((val/255)*100);
+  saveSettings();
   callback();
 });
 
