@@ -2,6 +2,8 @@
   "red": 100,
   "green": 100,
   "blue": 100,
+  "hue": 250,
+  "saturation": 1,
   "brightnessRGB": 50,
   "brightnessWhite": 50
 }

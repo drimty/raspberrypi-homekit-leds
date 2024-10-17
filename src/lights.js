@@ -1,28 +1,12 @@
 const gpio = require('pigpio').Gpio;
 const hap = require("hap-nodejs");
 const fs = require("fs");
-var showLogging = false;
-var restoredSettings;
+var showLogging = true;
 
-// reading a JSON file asynchronously
-fs.readFile("settings.json", (error, data) => {
-  // if the reading process failed,
-  // throwing the error
-  if (error) {
-    // logging the error
-    console.error(error);
-
-    throw err;
-  }
-
-  // parsing the JSON object
-  // to convert it to a JavaScript object
-  restoredSettings = JSON.parse(data);
-
-  // printing the JavaScript object
-  // retrieved from the JSON file
-  console.log(user);
-});
+// reading a JSON file
+const data = fs.readFileSync('settings.json');
+const restoredSettings = JSON.parse(data);
+if (showLogging) {console.log(restoredSettings);}
 
 const Accessory = hap.Accessory;
 const Characteristic = hap.Characteristic;
@@ -50,8 +34,8 @@ const saturationCharacteristic = lightService.getCharacteristic(Characteristic.S
 
 var LEDstripStatusIsOn = false;
 var currentLEDbrightness = restoredSettings["brightnessRGB"];
-var hue = 0;
-var saturation = 0;
+var hue = restoredSettings["hue"];
+var saturation = restoredSettings["saturation"];
 var redLED = new gpio(27, {mode: gpio.OUTPUT});
 var greenLED = new gpio(17, {mode: gpio.OUTPUT});
 var blueLED = new gpio(23, {mode: gpio.OUTPUT});
@@ -65,6 +49,7 @@ var redValue = restoredSettings["red"];
 var greenValue = restoredSettings["green"];
 var blueValue = restoredSettings["blue"];
 
+
 var brightnessChanged = false;
 var hueChanged = false;
 var saturationChanged = false;
@@ -75,6 +60,8 @@ const saveSettings = function () {
     red: redValue,
     green: greenValue,
     blue: blueValue,
+    hue: hue,
+    saturation: saturation,
     brightnessRGB: currentLEDbrightness,
     brightnessWhite: currentLEDbrightness_2,
   };
