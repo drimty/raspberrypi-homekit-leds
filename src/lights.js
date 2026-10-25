@@ -3,7 +3,7 @@ const hap = require("hap-nodejs");
 const fs = require("fs");
 const path = require("path");
 const dgram = require("dgram");
-var showLogging = true;
+var showLogging = false;
 
 // Wake-on-LAN settings for the PC switch
 const pcMacAddress = "AA:BB:CC:DD:EE:FF"; // MAC address of the PC network card
