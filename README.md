@@ -123,9 +123,14 @@ sudo npm install pm2@latest -g
 ```
 pm2 startup
 ```
-From terminal find... 
-[PM2] To setup the Startup Script, copy/paste the following command:
-sudo env PATH=$PATH:/usr/bin /usr/local/lib/node_modules/pm2/bin/pm2 startup systemd -u dk --hp /home/dk
+
+> [!IMPORTANT]
+> `pm2 startup` does **not** set up autostart by itself. It prints a command that you must **copy and run**:
+> ```
+> [PM2] To setup the Startup Script, copy/paste the following command:
+> sudo env PATH=$PATH:/usr/bin /usr/local/lib/node_modules/pm2/bin/pm2 startup systemd -u dk --hp /home/dk
+> ```
+> Run the `sudo env PATH=...` line exactly as printed in **your** terminal (the user `dk` and paths may differ). Without it the script won't start after a reboot.
 
 then:
 ```console
