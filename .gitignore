@@ -1,6 +1,7 @@
 # Created by .ignore support plugin (hsz.mobi)
 ### HAP-NodeJS files
 persist
+settings.json.tmp
 
 ### Node template
 # Logs

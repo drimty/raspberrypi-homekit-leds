@@ -1,14 +1,40 @@
 const gpio = require('pigpio').Gpio;
 const hap = require("hap-nodejs");
 const fs = require("fs");
+const path = require("path");
+const dgram = require("dgram");
 var showLogging = true;
 
-// reading a JSON file
-const data = fs.readFileSync('settings.json');
-const restoredSettings = JSON.parse(data);
+// Wake-on-LAN settings for the PC switch
+const pcMacAddress = "AA:BB:CC:DD:EE:FF"; // MAC address of the PC network card
+const wolBroadcastAddress = "255.255.255.255"; // or your subnet broadcast, e.g. "192.168.1.255"
+const wolPort = 9;
+
+// settings.json lives in the project root, independent of the current working directory
+const settingsPath = path.join(__dirname, "..", "settings.json");
+const settingsTmpPath = settingsPath + ".tmp";
+
+const defaultSettings = {
+  red: 100,
+  green: 100,
+  blue: 100,
+  hue: 250,
+  saturation: 1,
+  brightnessRGB: 50,
+  brightnessWhite: 50,
+};
+
+// reading a JSON file, falling back to defaults if it is missing or broken
+var restoredSettings = Object.assign({}, defaultSettings);
+try {
+  Object.assign(restoredSettings, JSON.parse(fs.readFileSync(settingsPath)));
+} catch (error) {
+  console.error("Can't read settings.json, using defaults: " + error.message);
+}
 if (showLogging) {console.log(restoredSettings);}
 
 const Accessory = hap.Accessory;
+const Bridge = hap.Bridge;
 const Characteristic = hap.Characteristic;
 const CharacteristicEventTypes = hap.CharacteristicEventTypes;
 const Service = hap.Service;
@@ -17,7 +43,7 @@ const Service = hap.Service;
 // hap.HAPStorage.setCustomStoragePath("...");
 
 const accessoryUuid = hap.uuid.generate("hap.project.rgb.strip");
-const accessory = new Accessory("RGB LED Strip Accesssory", accessoryUuid);
+const accessory = new Accessory("RGB LED Strip", accessoryUuid);
 
 const lightService = new Service.Lightbulb("RGBLS");
 
@@ -54,7 +80,15 @@ var brightnessChanged = false;
 var hueChanged = false;
 var saturationChanged = false;
 
+var saveTimer = null;
+
+// HomeKit sends many values while a slider is dragged, so write the file once things settle
 const saveSettings = function () {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(writeSettings, 1000);
+}
+
+const writeSettings = function () {
   // initializing a JavaScript object
   const settings = {
     red: redValue,
@@ -71,18 +105,21 @@ const saveSettings = function () {
   // converting the JSON object to a string
   const data = JSON.stringify(settings);
 
-  // writing the JSON string content to a file
-  fs.writeFile("settings.json", data, (error) => {
-    // throwing the error
-    // in case of a writing problem
+  // writing to a temp file first and renaming it, so a power loss can't leave a half-written settings.json
+  fs.writeFile(settingsTmpPath, data, (error) => {
     if (error) {
-      // logging the error
-      if (showLogging) {console.error(error);}
-
-      throw error;
+      console.error("Can't write settings: " + error.message);
+      return;
     }
 
-    if (showLogging) {console.log("settings.json written correctly");}
+    fs.rename(settingsTmpPath, settingsPath, (error) => {
+      if (error) {
+        console.error("Can't write settings: " + error.message);
+        return;
+      }
+
+      if (showLogging) {console.log("settings.json written correctly");}
+    });
   });
 }
 
@@ -205,7 +242,7 @@ brightnessCharacteristic.on(CharacteristicEventTypes.SET, (value, callback) => {
 
 hueCharacteristic.on(CharacteristicEventTypes.GET, (callback) => {
   if (showLogging) { console.log("Current Hue level?: " + hue); }
-  callback(undefined, currentLEDbrightness);
+  callback(undefined, hue);
 });
 
 hueCharacteristic.on(CharacteristicEventTypes.SET, (value, callback) => {
@@ -218,7 +255,7 @@ hueCharacteristic.on(CharacteristicEventTypes.SET, (value, callback) => {
 
 saturationCharacteristic.on(CharacteristicEventTypes.GET, (callback) => {
   if (showLogging) { console.log("Current Saturation?: " + saturation); }
-  callback(undefined, currentLEDbrightness);
+  callback(undefined, saturation);
 });
 
 saturationCharacteristic.on(CharacteristicEventTypes.SET, (value, callback) => {
@@ -231,30 +268,15 @@ saturationCharacteristic.on(CharacteristicEventTypes.SET, (value, callback) => {
 
 accessory.addService(lightService); // adding the service to the accessory
 
-// once everything is set up, we publish the accessory. Publish should always be the last step!
-accessory.publish({
-  username: "17:51:07:F4:BC:8A",
-  pincode: pincode,
-  port: 47129,
-  category: hap.Categories.LIGHTBULB, // value here defines the symbol shown in the pairing screen
-});
-
 
 // Second Accessory (white strip)
-const hap_2 = require("hap-nodejs");
+const accessoryUuid_2 = hap.uuid.generate("hap.project.white.strip");
+const accessory_2 = new Accessory("White LED Strip", accessoryUuid_2);
 
-const Accessory_2 = hap_2.Accessory;
-const Characteristic_2 = hap_2.Characteristic;
-const CharacteristicEventTypes_2 = hap_2.CharacteristicEventTypes;
-const Service_2 = hap_2.Service;
+const lightService_2 = new Service.Lightbulb("WLS");
 
-const accessoryUuid_2 = hap_2.uuid.generate("hap.project.white.strip");
-const accessory_2 = new Accessory_2("White LED Strip Accesssory", accessoryUuid_2);
-
-const lightService_2 = new Service_2.Lightbulb("WLS");
-
-const onCharacteristic_2 = lightService_2.getCharacteristic(Characteristic_2.On);
-const brightnessCharacteristic_2 = lightService_2.getCharacteristic(Characteristic_2.Brightness);
+const onCharacteristic_2 = lightService_2.getCharacteristic(Characteristic.On);
+const brightnessCharacteristic_2 = lightService_2.getCharacteristic(Characteristic.Brightness);
 
 var LEDstripStatusIsOn_2 = false;
 var currentLEDbrightness_2 = restoredSettings["brightnessWhite"];
@@ -262,16 +284,18 @@ var ledStripGPIOpin_2 = new gpio(22, {mode: gpio.OUTPUT});
 
 ledStripGPIOpin_2.pwmWrite(0);
 
-onCharacteristic_2.on(CharacteristicEventTypes_2.GET, callback => {
+onCharacteristic_2.on(CharacteristicEventTypes.GET, callback => {
   if (showLogging) { console.log("Is LED Strip On?: " + LEDstripStatusIsOn_2); }
   callback(undefined, LEDstripStatusIsOn_2);
 });
 
-onCharacteristic_2.on(CharacteristicEventTypes_2.SET, (value, callback) => {
+onCharacteristic_2.on(CharacteristicEventTypes.SET, (value, callback) => {
   if (showLogging) { console.log("Setting LED Strip On: " + value); }
   if ( value == true && LEDstripStatusIsOn_2 == false) {
     if ( currentLEDbrightness_2 == 0 ) {
+      currentLEDbrightness_2 = 100;
       ledStripGPIOpin_2.pwmWrite(255);
+      saveSettings();
     } else {
       var val = parseInt(255*(currentLEDbrightness_2/100), 10);
       ledStripGPIOpin_2.pwmWrite(val);
@@ -285,15 +309,17 @@ onCharacteristic_2.on(CharacteristicEventTypes_2.SET, (value, callback) => {
   callback();
 });
 
-brightnessCharacteristic_2.on(CharacteristicEventTypes_2.GET, (callback) => {
+brightnessCharacteristic_2.on(CharacteristicEventTypes.GET, (callback) => {
   if (showLogging) { console.log("Current Strip brightness level?: " + currentLEDbrightness_2); }
   callback(undefined, currentLEDbrightness_2);
 });
 
-brightnessCharacteristic_2.on(CharacteristicEventTypes_2.SET, (value, callback) => {
+brightnessCharacteristic_2.on(CharacteristicEventTypes.SET, (value, callback) => {
   if (showLogging) { console.log("Setting Strip brightness level to: " + value); }
   var val = parseInt(255*(value/100), 10);
-  ledStripGPIOpin_2.pwmWrite(val);
+  if ( LEDstripStatusIsOn_2 ) {
+    ledStripGPIOpin_2.pwmWrite(val);
+  }
   currentLEDbrightness_2 = Math.ceil((val/255)*100);
   saveSettings();
   callback();
@@ -301,12 +327,85 @@ brightnessCharacteristic_2.on(CharacteristicEventTypes_2.SET, (value, callback) 
 
 accessory_2.addService(lightService_2);
 
-accessory_2.publish({
-  username: "BB:00:00:00:00:01",
-  pincode: pincode,
-  port: 47130,
-  category: hap_2.Categories.LIGHTBULB
+
+// Third Accessory (PC Wake-on-LAN button)
+const sendWakeOnLan = function (mac, callback) {
+  const macBytes = Buffer.from(mac.replace(/[:-]/g, ""), "hex");
+  if ( macBytes.length != 6 ) {
+    callback(new Error("Invalid MAC address: " + mac));
+    return;
+  }
+
+  // magic packet: 6 x 0xFF followed by the MAC address repeated 16 times
+  const packet = Buffer.alloc(6 + 16 * 6, 0xff);
+  for (var i = 0; i < 16; i++) {
+    macBytes.copy(packet, 6 + i * 6);
+  }
+
+  const socket = dgram.createSocket("udp4");
+  socket.once("error", (error) => {
+    socket.close();
+    callback(error);
+  });
+  socket.bind(() => {
+    socket.setBroadcast(true);
+    socket.send(packet, wolPort, wolBroadcastAddress, (error) => {
+      socket.close();
+      callback(error);
+    });
+  });
+}
+
+const accessoryUuid_3 = hap.uuid.generate("hap.project.pc.wol");
+const accessory_3 = new Accessory("PC", accessoryUuid_3);
+
+const switchService_3 = new Service.Switch("PC");
+const onCharacteristic_3 = switchService_3.getCharacteristic(Characteristic.On);
+
+// HomeKit has no plain button, so this is a switch that turns itself off again after a second
+var wolSwitchIsOn = false;
+
+onCharacteristic_3.on(CharacteristicEventTypes.GET, callback => {
+  callback(undefined, wolSwitchIsOn);
 });
 
-console.log("Accessory(2) setup finished!");
+onCharacteristic_3.on(CharacteristicEventTypes.SET, (value, callback) => {
+  wolSwitchIsOn = value;
+  if ( value == true ) {
+    if (showLogging) { console.log("Sending Wake-on-LAN to " + pcMacAddress); }
+    sendWakeOnLan(pcMacAddress, (error) => {
+      if (error) {
+        console.error("Wake-on-LAN failed: " + error.message);
+      } else if (showLogging) {
+        console.log("Wake-on-LAN packet sent");
+      }
+    });
+    setTimeout(() => {
+      wolSwitchIsOn = false;
+      onCharacteristic_3.updateValue(false);
+    }, 1000);
+  }
+  callback();
+});
+
+accessory_3.addService(switchService_3);
+
+
+// Bridge: all accessories are added to Apple Home at once with a single pairing
+const bridgeUuid = hap.uuid.generate("hap.project.leds.bridge");
+const bridge = new Bridge("Raspberry Pi Bridge", bridgeUuid);
+
+bridge.addBridgedAccessory(accessory);
+bridge.addBridgedAccessory(accessory_2);
+bridge.addBridgedAccessory(accessory_3);
+
+// once everything is set up, we publish the bridge. Publish should always be the last step!
+bridge.publish({
+  username: "17:51:07:F4:BC:8B",
+  pincode: pincode,
+  port: 47129,
+  category: hap.Categories.BRIDGE, // value here defines the symbol shown in the pairing screen
+});
+
+console.log("Bridge setup finished!");
 console.log("Device Pin Code: " + pincode);
